@@ -139,6 +139,7 @@ copy /Y "$(ProjectDir)vendor\dll\PVDRuntime_64.dll" "$(TargetDir)PVDRuntime_64.d
     <ClCompile Include="src\Core\Animation\SkinnedModel.cpp" />
     <ClCompile Include="src\Core\AssetManager.cpp" />
     <ClCompile Include="src\Core\Door.cpp" />
+    <ClCompile Include="src\Core\Floor.cpp" />
     <ClCompile Include="src\Core\Floorplan.cpp" />
     <ClCompile Include="src\Core\AnimatedGameObject.cpp" />
     <ClCompile Include="src\Core\FbxImporter.cpp" />
@@ -146,8 +147,11 @@ copy /Y "$(ProjectDir)vendor\dll\PVDRuntime_64.dll" "$(TargetDir)PVDRuntime_64.d
     <ClCompile Include="src\Core\GameObject.cpp" />
     <ClCompile Include="src\Core\GL.cpp" />
     <ClCompile Include="src\Core\Input.cpp" />
+    <ClCompile Include="src\Core\InputMulti.cpp" />
+    <ClCompile Include="src\Core\Light.cpp" />
     <ClCompile Include="src\Core\Physics.cpp" />
     <ClCompile Include="src\Core\Player.cpp" />
+    <ClCompile Include="src\Core\Ragdoll.cpp" />
     <ClCompile Include="src\Core\Scene.cpp" />
     <ClCompile Include="src\Core\TextBlitting.cpp" />
     <ClCompile Include="src\Core\Window.cpp" />
@@ -168,6 +172,7 @@ copy /Y "$(ProjectDir)vendor\dll\PVDRuntime_64.dll" "$(TargetDir)PVDRuntime_64.d
     <ClCompile Include="src\Renderer\Texture.cpp" />
     <ClCompile Include="src\Renderer\Texture3D.cpp" />
     <ClCompile Include="vendor\glad\src\glad.c" />
+    <ClCompile Include="vendor\im3d\im3d.cpp" />
     <ClCompile Include="vendor\stb_image\stb_image.cpp" />
     <ClCompile Include="vendor\tracy\public\TracyClient.cpp" />
   </ItemGroup>
@@ -180,11 +185,16 @@ copy /Y "$(ProjectDir)vendor\dll\PVDRuntime_64.dll" "$(TargetDir)PVDRuntime_64.d
     <ClInclude Include="src\Core\AssetManager.h" />
     <ClInclude Include="src\Core\Audio.hpp" />
     <ClInclude Include="src\Core\Door.h" />
+    <ClInclude Include="src\Core\Floor.h" />
     <ClInclude Include="src\Core\Floorplan.h" />
     <ClInclude Include="src\Core\AnimatedGameObject.h" />
     <ClInclude Include="src\Core\FbxImporter.h" />
     <ClInclude Include="src\Core\File.h" />
     <ClInclude Include="src\Core\GameObject.h" />
+    <ClInclude Include="src\Core\Gizmo.hpp" />
+    <ClInclude Include="src\Core\InputMulti.h" />
+    <ClInclude Include="src\Core\Light.h" />
+    <ClInclude Include="src\Core\Ragdoll.h" />
     <ClInclude Include="src\EngineState.hpp" />
     <ClInclude Include="src\Core\GL.h" />
     <ClInclude Include="src\Core\Input.h" />
@@ -232,6 +242,9 @@ copy /Y "$(ProjectDir)vendor\dll\PVDRuntime_64.dll" "$(TargetDir)PVDRuntime_64.d
     <None Include="res\shaders\editor_solid_color.vert" />
     <None Include="res\shaders\editor_textured.frag" />
     <None Include="res\shaders\editor_textured.vert" />
+    <None Include="res\shaders\envMap.frag" />
+    <None Include="res\shaders\envMap.geom" />
+    <None Include="res\shaders\envMap.vert" />
     <None Include="res\shaders\geometry.frag" />
     <None Include="res\shaders\geometry.vert" />
     <None Include="res\shaders\geometry_instanced.frag" />
@@ -240,6 +253,7 @@ copy /Y "$(ProjectDir)vendor\dll\PVDRuntime_64.dll" "$(TargetDir)PVDRuntime_64.d
     <None Include="res\shaders\glass.vert" />
     <None Include="res\shaders\outline.frag" />
     <None Include="res\shaders\outline.vert" />
+    <None Include="res\shaders\skin.comp" />
     <None Include="res\shaders\skybox.frag" />
     <None Include="res\shaders\skybox.vert" />
     <None Include="res\shaders\test.comp" />
@@ -253,6 +267,8 @@ copy /Y "$(ProjectDir)vendor\dll\PVDRuntime_64.dll" "$(TargetDir)PVDRuntime_64.d
     <None Include="res\shaders\shadowmap.vert" />
     <None Include="res\shaders\solid_color.frag" />
     <None Include="res\shaders\solid_color.vert" />
+    <None Include="res\shaders\test.frag" />
+    <None Include="res\shaders\test.vert" />
     <None Include="res\shaders\ui.frag" />
     <None Include="res\shaders\ui.vert" />
     <None Include="res\shaders\voxelize.frag" />

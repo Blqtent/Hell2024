@@ -16,15 +16,33 @@
 enum EngineMode { GAME = 0, FLOORPLAN, EDITOR };
 enum ViewportMode {FULLSCREEN = 0, SPLITSCREEN, VIEWPORTMODE_COUNT};
 enum Weapon { KNIFE = 0, GLOCK, SHOTGUN, AKS74U, MP7, WEAPON_COUNT };
-enum WeaponAction { IDLE = 0, FIRE, RELOAD, RELOAD_FROM_EMPTY, DRAW_BEGIN, DRAWING, SPAWNING };
+enum WeaponAction {
+    IDLE = 0, 
+    FIRE, 
+    RELOAD, 
+    RELOAD_FROM_EMPTY, 
+    DRAW_BEGIN, 
+    DRAWING, 
+    SPAWNING, 
+    RELOAD_SHOTGUN_BEGIN, 
+    RELOAD_SHOTGUN_SINGLE_SHELL, 
+    RELOAD_SHOTGUN_DOUBLE_SHELL, 
+    RELOAD_SHOTGUN_END,
+    ADS_IN,
+    ADS_OUT,
+    ADS_IDLE,
+    ADS_FIRE
+};
 
 #define AUDIO_SELECT "SELECT.wav"
+#define ENV_MAP_SIZE 2048
 
 #define DOOR_VOLUME 1.0f
 #define INTERACT_DISTANCE 2.5f
 
 #define NEAR_PLANE 0.005f
-#define FAR_PLANE 50.0f
+//#define FAR_PLANE 50.0f
+#define FAR_PLANE 500.0f
 
 #define NOOSE_PI 3.14159265359f
 #define NOOSE_HALF_PI 1.57079632679f
@@ -36,6 +54,9 @@ enum WeaponAction { IDLE = 0, FIRE, RELOAD, RELOAD_FROM_EMPTY, DRAW_BEGIN, DRAWI
 
 #define WINDOW_WIDTH 0.85f
 #define WINDOW_HEIGHT 2.1f
+
+#define PLAYER_CAPSULE_HEIGHT 0.5f
+#define PLAYER_CAPSULE_RADIUS 0.1f
 
 //#define MAP_WIDTH   32
 //#define MAP_HEIGHT  16
@@ -171,14 +192,6 @@ struct VoxelFace {
 
 
 
-struct Light {
-    glm::vec3 position;
-    float strength = 1.0f;
-    glm::vec3 color = glm::vec3(1, 0.7799999713897705, 0.5289999842643738);
-    bool isDirty = false;
-    float radius = 6.0f;
-private:
-};
 
 struct Triangle {
     glm::vec3 p1 = glm::vec3(0);
@@ -238,7 +251,7 @@ struct Material {
 };
 
 enum RaycastGroup { RAYCAST_DISABLED = 0, RAYCAST_ENABLED };
-enum PhysicsObjectType { UNDEFINED = 0, GAME_OBJECT, GLASS, DOOR, SCENE_MESH};
+enum PhysicsObjectType { UNDEFINED = 0, GAME_OBJECT, GLASS, DOOR, SCENE_MESH, RAGDOLL_RIGID};
 
 struct PhysicsObjectData {
     PhysicsObjectData(PhysicsObjectType type, void* parent) {
@@ -269,30 +282,7 @@ enum CollisionGroup {
     ITEM_PICK_UP = 16,
 };
 
-/*
-struct PhysicsObjectData {
-    PhysicsObjectData(PhysicsObjectType type, void* index) {
-		this->type = type;
-		this->index = index;
-	}
-	PhysicsObjectType type;
-	void* index;
-};*/
-
-/*
-struct RayCastResult {
-	bool found = false;
-//	float distanceToHit = 99999;
-	void* parent = nullptr;
-//	Triangle triangle;
-	PhysicsObjectType physicsObjectType = PhysicsObjectType::UNDEFINED;
-    void* hitActor;
-
-
-
-//	glm::mat4 triangeleModelMatrix = glm::mat4(1);
-//	glm::vec3 intersectionPoint = glm::vec3(0);
-//	glm::vec2 baryPosition = glm::vec2(0);
-//	glm::vec3 closestPointOnBoundingBox = glm::vec3(0, 0, 0);
-//	unsigned int rayCount = 0;
-};*/
+struct AABB {
+    glm::vec3 position = glm::vec3(0);
+    glm::vec3 extents = glm::vec3(0);
+};

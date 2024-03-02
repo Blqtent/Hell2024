@@ -18,7 +18,11 @@ void GameObject::SetPosition(float x, float y, float z) {
 }
 
 void GameObject::SetPosition(glm::vec3 position) {
-	_transform.position = position;
+    _transform.position = position;
+}
+
+void GameObject::SetRotation(glm::vec3 rotation) {
+    _transform.rotation = rotation;
 }
 
 void GameObject::SetPositionX(float position) {
@@ -133,21 +137,82 @@ void GameObject::Interact() {
 }
 
 void GameObject::Update(float deltaTime) {
+
+    _wasPickedUpLastFrame = false;
+    _wasRespawnedUpLastFrame = false;
+
+    if (_name == "GlockAmmo_PickUp") {
+           
+        GameObject* topDraw = Scene::GetGameObjectByName("TopDraw");
+        if (topDraw) {
+
+            glm::mat4 globalPose = Util::PxMat44ToGlmMat4(_collisionBody->getGlobalPose());        
+            float width = 0.4f;
+            float height = 0.4f;
+            float depth = 0.4f;
+            PxShape* overlapShape = Physics::CreateBoxShape(width, height, depth, Transform());
+            const PxGeometry& overlapGeometry = overlapShape->getGeometry();
+            const PxTransform shapePose(_collisionBody->getGlobalPose());
+            OverlapReport overlapReport = Physics::OverlapTest(overlapGeometry, shapePose, CollisionGroup::GENERIC_BOUNCEABLE);
+
+           // std::cout << "\nhit count: " << overlapReport.hits.size() << "\n";
+
+            if (overlapReport.HitsFound()) {
+                for (auto& hit : overlapReport.hits) {
+
+                  /* std::cout << "hit object:  " << hit << "\n";
+
+                    for (GameObject& object : Scene::_gameObjects) {
+                        if (object._collisionBody == hit) {
+                            std::cout << "-" << object.GetName() << "\n";
+                        }
+                    }
+                    */
+                    if (hit == topDraw->_collisionBody) {
+                        float speed = 3.0f;
+                        Transform displacement;
+
+                        if (topDraw->_openState == OpenState::OPENING) {
+                            displacement.position.z += deltaTime * speed;
+                            PxMat44 physXGlobalPose = Util::GlmMat4ToPxMat44(globalPose * displacement.to_mat4());
+                            PxTransform transform(physXGlobalPose);
+                            _collisionBody->setGlobalPose(transform);
+                        }
+                        else if (topDraw->_openState == OpenState::CLOSING) {
+                            displacement.position.z -= deltaTime * speed;
+                            PxMat44 physXGlobalPose = Util::GlmMat4ToPxMat44(globalPose * displacement.to_mat4());
+                            PxTransform transform(physXGlobalPose);
+                            _collisionBody->setGlobalPose(transform);
+                        }
+                    }
+                }                
+            }
+
+         //   std::cout << "ammo object: " << _collisionBody << "\n";
+        }
+    }
 	
+
+
 	if (_pickupType != PickUpType::NONE) {
+
+        // Decrement pickup cooldown timer
 		if (_pickupCoolDownTime > 0) {
 			_pickupCoolDownTime -= deltaTime;
 		}
-		if (_pickupCoolDownTime <= 0) {
+        // Respawn item when timer is zero
+        if (_pickupCoolDownTime < 0) {
 			_pickupCoolDownTime = 0;
 			_collected = false;
+            EnableRaycasting();
+            _wasPickedUpLastFrame = true;
 		}
 	}
 
 	// Open/Close if applicable
 	if (_openState != OpenState::NONE) {
 
-		if (_openState == OpenState::OPENING) {
+		if (_openState == OpenState::OPENING && _openAxis != OpenAxis::ROTATION_POS_X && _openAxis != OpenAxis::ROTATION_NEG_X) {
 
 			float speed = 3.0f;
 			float maxOpenDistance = 0.25f;
@@ -162,7 +227,7 @@ void GameObject::Update(float deltaTime) {
 			}
 		}
 
-		if (_openState == OpenState::CLOSING) {
+		if (_openState == OpenState::CLOSING && _openAxis != OpenAxis::ROTATION_POS_X && _openAxis != OpenAxis::ROTATION_NEG_X) {
 
 			float speed = 3.0f;
 
@@ -175,6 +240,51 @@ void GameObject::Update(float deltaTime) {
 				_openTransform.position.z = 0;
 			}
 		}
+
+
+
+
+        // toilet hardcoded shit
+
+        float maxOpenValue = HELL_PI * -0.5f - 0.0374f;
+        float maxOpenValueSeat = HELL_PI * 0.5f + 0.0374f;
+        float speed = 10.0f;
+        if (_openState == OpenState::OPENING && _openAxis == OpenAxis::ROTATION_POS_X) {
+            _openTransform.rotation.x -= deltaTime * speed;
+            if (_openTransform.rotation.x < maxOpenValue) {
+                _openState = OpenState::OPEN;
+            }
+            if (_openTransform.rotation.x < maxOpenValue) {
+                _openTransform.rotation.x = maxOpenValue;
+            }
+        }
+
+        if (_openState == OpenState::CLOSING && _openAxis == OpenAxis::ROTATION_POS_X) {
+            _openTransform.rotation.x += deltaTime * speed;
+            if (_openTransform.rotation.x > 0) {
+                _openState = OpenState::CLOSED;
+            }
+            _openTransform.rotation.x = std::min(_openTransform.rotation.x, 0.0f);
+        }
+
+
+        if (_openState == OpenState::OPENING && _openAxis == OpenAxis::ROTATION_NEG_X) {
+            _openTransform.rotation.x += deltaTime * speed;
+            if (_openTransform.rotation.x > maxOpenValueSeat) {
+                _openState = OpenState::OPEN;
+            }
+            if (_openTransform.rotation.x > maxOpenValueSeat) {
+                _openTransform.rotation.x = maxOpenValueSeat;
+            }
+        }
+
+        if (_openState == OpenState::CLOSING && _openAxis == OpenAxis::ROTATION_NEG_X) {
+            _openTransform.rotation.x -= deltaTime * speed;
+            if (_openTransform.rotation.x < 0) {
+                _openState = OpenState::CLOSED;
+            }
+            _openTransform.rotation.x = std::max(_openTransform.rotation.x, 0.0f);
+        }
 	}
 
 	if (_modelMatrixMode == ModelMatrixMode::GAME_TRANSFORM) {
@@ -195,12 +305,28 @@ void GameObject::Update(float deltaTime) {
 			_raycastBody->setGlobalPose(_collisionBody->getGlobalPose());
 		}
 	}
-	// Pointers
+
+	// Update raycast object PhysX pointer
 	if (_raycastBody) {
-		PhysicsObjectData* physicsObjectData = (PhysicsObjectData*)_raycastBody->userData;
-		physicsObjectData->type = GAME_OBJECT;
-		physicsObjectData->parent = this;
+		if (_raycastBody->userData) {
+			delete _raycastBody->userData;
+		}
+		_raycastBody->userData = new PhysicsObjectData(PhysicsObjectType::GAME_OBJECT, this);
 	}
+	// Update collision object PhysX pointer
+	if (_collisionBody) {
+		if (_collisionBody->userData) {
+			delete _collisionBody->userData;
+		}
+		_collisionBody->userData = new PhysicsObjectData(PhysicsObjectType::GAME_OBJECT, this);
+	}
+
+    // AABB
+    if (_raycastBody) {
+        _aabbPreviousFrame = _aabb;
+        _aabb.extents = Util::PxVec3toGlmVec3(_raycastBody->getWorldBounds().getExtents());
+        _aabb.position = Util::PxVec3toGlmVec3(_raycastBody->getWorldBounds().getCenter());
+    }
 }
 
 void GameObject::UpdateEditorPhysicsObject() {
@@ -214,6 +340,12 @@ void GameObject::UpdateEditorPhysicsObject() {
 		else if (_modelMatrixMode == ModelMatrixMode::PHYSX_TRANSFORM && _collisionBody) {
 			_editorRaycastBody->setGlobalPose(_collisionBody->getGlobalPose());
 		}
+		// Repair broken pointer 
+		// (this happens when a mag pushes a new GameObject into the _gameObjects std::vector)
+		if (_editorRaycastBody->userData) {
+			delete _editorRaycastBody->userData;
+		}
+		_editorRaycastBody->userData = new PhysicsObjectData(PhysicsObjectType::GAME_OBJECT, this);
 	}
 }
 
@@ -273,9 +405,18 @@ void GameObject::SetAudioOnOpen(std::string filename, float volume) {
 	_audio.onOpen = { filename, volume };
 }
 
+glm::vec3 GameObject::GetWorldSpaceOABBCenter() {
+	return GetWorldPosition() + _boundingBox.offsetFromModelOrigin;
+}
+
 void GameObject::SetAudioOnClose(std::string filename, float volume) {
 	_audio.onClose = { filename, volume };
 }
+
+/*
+void GameObject::SetModelScaleWhenUsingPhysXTransform(glm::vec3 scale)
+{
+}*/
 
 void GameObject::SetAudioOnInteract(std::string filename, float volume) {
 	_audio.onInteract = { filename, volume };
@@ -387,7 +528,7 @@ void GameObject::CreateEditorPhysicsObject() {
 	}
 	PxShapeFlags shapeFlags(PxShapeFlag::eSCENE_QUERY_SHAPE);
 	_editorRaycastShape = Physics::CreateShapeFromTriangleMesh(_model->_triangleMesh, shapeFlags, Physics::GetDefaultMaterial(), _transform.scale);
-	_editorRaycastBody = Physics::CreateEditorRigidStatic(_transform, _editorRaycastShape);
+	_editorRaycastBody = Physics::CreateEditorRigidStatic(_transform, _editorRaycastShape, Physics::GetEditorScene());
 	if (_editorRaycastBody->userData) {
 		delete _editorRaycastBody->userData;
 	}
@@ -456,7 +597,7 @@ void GameObject::CreateRigidBody(glm::mat4 matrix, bool kinematic) {
 	_collisionBody = Physics::CreateRigidDynamic(matrix, kinematic);
 }
 
-void GameObject::AddCollisionShapeFromConvexMesh(Mesh* mesh, PhysicsFilterData physicsFilterData) {
+void GameObject::AddCollisionShapeFromConvexMesh(Mesh* mesh, PhysicsFilterData physicsFilterData, glm::vec3 scale) {
 	if (!_collisionBody) {
 		std::cout << "You tried to add a ConvexMesh shape to a GameObject without a rigid body. GameObject name is '" << _name << "'\n";
 		return;
@@ -467,7 +608,7 @@ void GameObject::AddCollisionShapeFromConvexMesh(Mesh* mesh, PhysicsFilterData p
 	if (!mesh->_convexMesh) {
 		mesh->CreateConvexMesh();
 	}
-	PxShape* shape = Physics::CreateShapeFromConvexMesh(mesh->_convexMesh);
+	PxShape* shape = Physics::CreateShapeFromConvexMesh(mesh->_convexMesh, NULL, scale);
 	PxFilterData filterData;
 	filterData.word0 = (PxU32)physicsFilterData.raycastGroup;
 	filterData.word1 = (PxU32)physicsFilterData.collisionGroup;
@@ -562,9 +703,7 @@ void GameObject::SetModelMatrixMode(ModelMatrixMode modelMatrixMode) {
 }
 
 void GameObject::SetPhysicsTransform(glm::mat4 worldMatrix) {
-
-	std::cout << "cunt\n" << Util::Mat4ToString(worldMatrix) << "\n";
-
+	std::cout << Util::Mat4ToString(worldMatrix) << "\n";
 	_collisionBody->setGlobalPose(PxTransform(Util::GlmMat4ToPxMat44(worldMatrix)));
 }
 
@@ -582,10 +721,16 @@ void GameObject::CleanUp() {
 	}
 	if (_raycastBody) {
 		_raycastBody->release();
-	}
-	if (_raycastShape) {
-		_raycastShape->release();
-	}
+    }
+    if (_raycastShape) {
+        _raycastShape->release();
+    }
+    if (_editorRaycastBody) {
+        _editorRaycastBody->release();
+    }
+    if (_editorRaycastShape) {
+        _editorRaycastShape->release();
+    }
 }
 
 std::vector<Triangle> GameObject::GetTris() {
@@ -643,6 +788,20 @@ std::vector<Triangle> GameObject::GetTris() {
 void GameObject::PickUp() {
 	_collected = true;
 	_pickupCoolDownTime = Config::item_respawn_time;
+	PxMat44 matrix = Util::GlmMat4ToPxMat44(_transform.to_mat4());
+
+    if (_name == "GlockAmmo_PickUp") {
+        GameObject* topDraw = Scene::GetGameObjectByName("TopDraw");
+        matrix = Util::GlmMat4ToPxMat44(_transform.to_mat4() * topDraw->_openTransform.to_mat4());
+    }
+
+	_collisionBody->setGlobalPose(PxTransform(matrix));
+    DisableRaycasting();
+    _wasPickedUpLastFrame = true;
+}
+
+void GameObject::PutRigidBodyToSleep() {
+    ((PxRigidDynamic*)_collisionBody)->putToSleep();
 }
 
 void GameObject::SetPickUpType(PickUpType pickupType) {
@@ -651,4 +810,30 @@ void GameObject::SetPickUpType(PickUpType pickupType) {
 
 bool GameObject::IsCollectable() {
 	return (_pickupType != PickUpType::NONE);
+}
+
+void GameObject::DisableRaycasting() {
+    auto filterData = _raycastShape->getQueryFilterData();
+    filterData.word0 = RAYCAST_DISABLED;
+    _raycastShape->setQueryFilterData(filterData);
+}
+
+void GameObject::EnableRaycasting() {
+
+    if (!_raycastShape) {
+        std::cout << "there is no raycast shape for game object with name: " << _name << "\n";
+        return;
+    }
+
+    auto filterData = _raycastShape->getQueryFilterData();
+    filterData.word0 = RAYCAST_ENABLED;
+    _raycastShape->setQueryFilterData(filterData);
+}
+
+bool GameObject::HasMovedSinceLastFrame() {
+    return (
+        _wasPickedUpLastFrame ||
+        _wasRespawnedUpLastFrame ||
+        _aabb.position != _aabbPreviousFrame.position && _aabb.extents != _aabbPreviousFrame.extents
+    );
 }

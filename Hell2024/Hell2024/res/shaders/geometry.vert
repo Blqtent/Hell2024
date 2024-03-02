@@ -51,7 +51,9 @@ void main() {
 			totalTangent += worldTangent;	
 		}
 	
+		//totalLocalPos = vec4(aPos, 1.0);
 		WorldPos = (model * vec4(totalLocalPos.xyz, 1)).xyz;
+
 		
 		attrNormal =  (model * vec4(normalize(totalNormal.xyz), 0)).xyz;
 		attrTangent =  (model * vec4(normalize(totalTangent.xyz), 0)).xyz;
@@ -76,5 +78,7 @@ void main() {
 		//attrBiTangent = normalize(cross(attrNormal,attrTangent));		
 	}
 		
+		//attrNormal = aNormal;
+
 	gl_Position = projection * view * vec4(WorldPos, 1.0);
 }

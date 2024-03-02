@@ -21,19 +21,9 @@ namespace EngineState {
 	inline EngineMode GetEngineMode() {
 		return _engineMode;
 	}
-
-
-	/*void ToggleEditor() {
-		if (GameState::_engineMode == EngineMode::GAME) {
-			//GL::ShowCursor();
-			GameState::_engineMode = EngineMode::FLOORPLAN;
-		}
-		else {
-			//GL::DisableCursor();
-			GameState::_engineMode = EngineMode::GAME;
-		}
-		Audio::PlayAudio(AUDIO_SELECT, 1.00f);
-	}*/
+	inline void SetEngineMode(EngineMode mode) {
+		_engineMode = mode;
+	}
 
 	inline void NextPlayer() {
 		_currentPlayer++;
@@ -52,4 +42,12 @@ namespace EngineState {
 		_viewportMode = (ViewportMode)currentViewportMode;
 		std::cout << "Current player: " << _currentPlayer << "\n";
 	}
+
+    // This is disgusting, find a better way to do this
+    //inline const std::vector<Weapon> weaponNamePointers = { KNIFE, GLOCK, SHOTGUN, AKS74U, MP7, WEAPON_COUNT };
 };
+
+namespace CasingType {
+    constexpr size_t BULLET_CASING = 0;
+    constexpr size_t SHOTGUN_SHELL = 1;
+}

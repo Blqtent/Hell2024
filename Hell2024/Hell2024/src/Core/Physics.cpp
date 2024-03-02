@@ -244,16 +244,13 @@ void Physics::Init() {
     sceneDesc.filterShader = contactReportFilterShader;
     sceneDesc.simulationEventCallback = &_contactReportCallback;
 
-
     _scene = _physics->createScene(sceneDesc);
     _scene->setVisualizationParameter(PxVisualizationParameter::eSCALE, 1.0f);
     _scene->setVisualizationParameter(PxVisualizationParameter::eCOLLISION_SHAPES, 2.0f);
 
-
-    _editorScene = _physics->createScene(sceneDesc);
-    _editorScene->setVisualizationParameter(PxVisualizationParameter::eSCALE, 1.0f);
-    _editorScene->setVisualizationParameter(PxVisualizationParameter::eCOLLISION_SHAPES, 2.0f);
-
+	_editorScene = _physics->createScene(sceneDesc);
+	_editorScene->setVisualizationParameter(PxVisualizationParameter::eSCALE, 1.0f);
+	_editorScene->setVisualizationParameter(PxVisualizationParameter::eCOLLISION_SHAPES, 2.0f);
 
     PxPvdSceneClient* pvdClient = _scene->getScenePvdClient();
     if (pvdClient) {
@@ -289,7 +286,7 @@ PxScene* Physics::GetScene() {
     return _scene;
 }
 PxScene* Physics::GetEditorScene() {
-    return _editorScene;
+	return _editorScene;
 }
 
 PxPhysics* Physics::GetPhysics() {
@@ -314,20 +311,21 @@ PxShape* Physics::CreateBoxShape(float width, float height, float depth, Transfo
 PxShape* Physics::CreateShapeFromTriangleMesh(PxTriangleMesh* triangleMesh, PxShapeFlags shapeFlags2, PxMaterial* material, glm::vec3 scale) {
     if (material == NULL) {
         material = _defaultMaterial;
-    }
-    PxMeshGeometryFlags flags(~PxMeshGeometryFlag::eTIGHT_BOUNDS | ~PxMeshGeometryFlag::eDOUBLE_SIDED);
+	}
+	PxMeshGeometryFlags flags(~PxMeshGeometryFlag::eTIGHT_BOUNDS | ~PxMeshGeometryFlag::eDOUBLE_SIDED);
+	//PxMeshGeometryFlags flags(~PxMeshGeometryFlag::eDOUBLE_SIDED);
     PxTriangleMeshGeometry geometry(triangleMesh, PxMeshScale(PxVec3(scale.x, scale.y, scale.z)), flags);
 
     PxShapeFlags shapeFlags(PxShapeFlag::eSCENE_QUERY_SHAPE); // Most importantly NOT eSIMULATION_SHAPE. PhysX does not allow for tri mesh.
     return _physics->createShape(geometry, *material, shapeFlags);
 }
 
-PxShape* Physics::CreateShapeFromConvexMesh(PxConvexMesh* convexMesh, PxMaterial* material, float /*scale*/) {
+PxShape* Physics::CreateShapeFromConvexMesh(PxConvexMesh* convexMesh, PxMaterial* material, glm::vec3 scale) {
     if (material == NULL) {
         material = _defaultMaterial;
     }
     PxConvexMeshGeometryFlags flags(~PxConvexMeshGeometryFlag::eTIGHT_BOUNDS);
-    PxConvexMeshGeometry geometry(convexMesh, PxMeshScale(), flags);
+    PxConvexMeshGeometry geometry(convexMesh, PxMeshScale(PxVec3(scale.x, scale.y, scale.z)), flags);
     return _physics->createShape(geometry, *material);
 }
 
@@ -379,7 +377,7 @@ PxRigidStatic* Physics::CreateRigidStatic(Transform transform, PhysicsFilterData
     return body;
 }
 
-PxRigidStatic* Physics::CreateEditorRigidStatic(Transform transform, PxShape* shape) {
+PxRigidStatic* Physics::CreateEditorRigidStatic(Transform transform, PxShape* shape, PxScene* scene) {
     PxQuat quat = Util::GlmQuatToPxQuat(glm::quat(transform.rotation));
 	PxTransform trans = PxTransform(PxVec3(transform.position.x, transform.position.y, transform.position.z), quat);
 
@@ -392,7 +390,7 @@ PxRigidStatic* Physics::CreateEditorRigidStatic(Transform transform, PxShape* sh
     filterData.word2 = (PxU32)NO_COLLISION;
 	shape->setQueryFilterData(filterData);       // ray casts
 	//body->setActorFlag(PxActorFlag::eVISUALIZATION, true);
-	_editorScene->addActor(*body);
+    scene->addActor(*body);
     return body;
 }
 
@@ -433,4 +431,30 @@ void Physics::ClearCollisionLists() {
 
 physx::PxRigidActor* Physics::GetGroundPlane() {
     return _groundPlane;
+}
+
+OverlapReport Physics::OverlapTest(const PxGeometry& overlapShape, const PxTransform& shapePose, PxU32 collisionGroup) {
+	PxQueryFilterData overlapFilterData = PxQueryFilterData();
+	overlapFilterData.data.word1 = collisionGroup;
+	const PxU32 bufferSize = 256;
+	PxOverlapHit hitBuffer[bufferSize];
+	PxOverlapBuffer buf(hitBuffer, bufferSize);
+    OverlapReport result;
+	if (Physics::GetScene()->overlap(overlapShape, shapePose, buf, overlapFilterData)) {
+		for (int i = 0; i < buf.getNbTouches(); i++) {
+			PxActor* hit = buf.getTouch(i).actor;
+			// Check for duplicates
+			bool found = false;
+			for (const PxActor* foundHit : result.hits) {
+				if (foundHit == hit) {
+					found = true;
+					break;
+				}
+			}
+			if (!found) {
+				result.hits.push_back(hit);
+			}
+		}
+	}
+	return result;
 }

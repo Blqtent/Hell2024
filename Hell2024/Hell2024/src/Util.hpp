@@ -12,8 +12,99 @@
 #include <assimp/matrix3x3.h>
 #include <assimp/matrix4x4.h>
 #include "Core/Physics.h"
+#include "rapidjson/document.h"
+#include <rapidjson/filereadstream.h>
+#include <rapidjson/istreamwrapper.h>
+#include <rapidjson/writer.h>
+#include <rapidjson/stringbuffer.h>
+#include <rapidjson/ostreamwrapper.h>
+#include <rapidjson/prettywriter.h>
 
 namespace Util {
+
+    inline float SquaredDistPointAABB(const glm::vec3 p, const AABB& aabb) {
+        auto check = [&](
+            const double pn,
+            const double bmin,
+            const double bmax) -> double {
+            double out = 0;
+            double v = pn;
+            if (v < bmin) {
+                double val = (bmin - v);
+                out += val * val;
+            }
+            if (v > bmax) {
+                double val = (v - bmax);
+                out += val * val;
+            }
+            return out;
+        };
+        // Squared distance
+        double sq = 0.0;
+        glm::vec3 min = aabb.position - aabb.extents;
+        glm::vec3 max = aabb.position + aabb.extents;
+        sq += check(p.x, min.x, max.x);
+        sq += check(p.y, min.y, max.y);
+        sq += check(p.z, min.z, max.z);
+        return sq;
+    }
+
+    inline bool AABBInSphere(AABB& aabb, glm::vec3 spherePosition, float sphereRadius) {
+        float squaredDistance = SquaredDistPointAABB(spherePosition, aabb);
+        return squaredDistance <= (sphereRadius * sphereRadius);
+    }
+
+    inline std::string WeaponActionToString(WeaponAction weaponAction) {
+
+        if (weaponAction == IDLE) {
+            return "IDLE";
+        }
+        else if (weaponAction == FIRE) {
+            return "FIRE";
+        }
+        else if (weaponAction == RELOAD) {
+            return "RELOAD";
+        }
+        else if (weaponAction == RELOAD_FROM_EMPTY) {
+            return "RELOAD_FROM_EMPTY";
+        }
+        else if (weaponAction == DRAW_BEGIN) {
+            return "DRAW_BEGIN";
+        }
+        else if (weaponAction == DRAWING) {
+            return "DRAWING";
+        }
+        else if (weaponAction == SPAWNING) {
+            return "SPAWNING";
+        }
+        else if (weaponAction == RELOAD_SHOTGUN_BEGIN) {
+            return "RELOAD_SHOTGUN_BEGIN";
+        }
+        else if (weaponAction == RELOAD_SHOTGUN_SINGLE_SHELL) {
+            return "RELOAD_SHOTGUN_SINGLE_SHELL";
+        }
+        else if (weaponAction == RELOAD_SHOTGUN_DOUBLE_SHELL) {
+            return "RELOAD_SHOTGUN_DOUBLE_SHELL";
+        }
+        else if (weaponAction == RELOAD_SHOTGUN_END) {
+            return "RELOAD_SHOTGUN_END";
+        }
+        else if (weaponAction == ADS_IN) {
+            return "ADS_IN";
+        }
+        else if (weaponAction == ADS_OUT) {
+            return "ADS_OUT";
+        }
+        else if (weaponAction == ADS_IDLE) {
+            return "ADS_IDLE";
+        }
+        else if (weaponAction == ADS_FIRE) {
+            return "ADS_FIRE";
+        }
+        else {
+            return "UNKNOWN WEAPON ACTION";
+        }
+    }
 
 	inline glm::vec3 PxVec3toGlmVec3(PxVec3 vec) {
 		return { vec.x, vec.y, vec.z };
@@ -89,15 +180,14 @@ namespace Util {
             result.hitActor = hit.block.actor;
 
             if (hit.block.actor->userData) {
-
                 PhysicsObjectData* physicsObjectData = (PhysicsObjectData*)hit.block.actor->userData;
                 result.physicsObjectType = physicsObjectData->type;
                 result.parent = physicsObjectData->parent;
-
             }
             else {
                 result.physicsObjectType = UNDEFINED;
-             //   std::cout << "no user data\n";
+                result.hitFound = false;
+                std::cout << "no user data found on ray hit\n";
             }
 
             /*EntityData* hitEntityData = (EntityData*)hit.block.actor->userData;
@@ -246,6 +336,10 @@ namespace Util {
         return std::string("(" + std::format("{:.2f}", v.x) + ", " + std::format("{:.2f}", v.y) + ", " + std::format("{:.2f}", v.z) + ")");
     }
 
+    inline std::string QuatToString(glm::quat q) {
+        return std::string("(" + std::format("{:.2f}", q.x) + ", " + std::format("{:.2f}", q.y) + ", " + std::format("{:.2f}", q.z) + ", " + std::format("{:.2f}", q.w) + ")");
+    }
+
 
     inline std::string Mat4ToString(glm::mat4 m) {
         std::string result;
@@ -315,6 +409,34 @@ namespace Util {
         glm::vec3 pos1 = triangle.p2;
         glm::vec3 pos2 = triangle.p3;
         return glm::normalize(glm::cross(pos1 - pos0, pos2 - pos0));
+    }
+
+    inline void SetNormalsAndTangentsFromVertices(Vertex* vert0, Vertex* vert1, Vertex* vert2) {
+        // Shortcuts for UVs
+        glm::vec3& v0 = vert0->position;
+        glm::vec3& v1 = vert1->position;
+        glm::vec3& v2 = vert2->position;
+        glm::vec2& uv0 = vert0->uv;
+        glm::vec2& uv1 = vert1->uv;
+        glm::vec2& uv2 = vert2->uv;
+        // Edges of the triangle : position delta. UV delta
+        glm::vec3 deltaPos1 = v1 - v0;
+        glm::vec3 deltaPos2 = v2 - v0;
+        glm::vec2 deltaUV1 = uv1 - uv0;
+        glm::vec2 deltaUV2 = uv2 - uv0;
+        float r = 1.0f / (deltaUV1.x * deltaUV2.y - deltaUV1.y * deltaUV2.x);
+        glm::vec3 tangent = (deltaPos1 * deltaUV2.y - deltaPos2 * deltaUV1.y) * r;
+        glm::vec3 bitangent = (deltaPos2 * deltaUV1.x - deltaPos1 * deltaUV2.x) * r;
+        glm::vec3 normal = NormalFromTriangle(vert0->position, vert1->position, vert2->position);
+        vert0->normal = normal;
+        vert1->normal = normal;
+        vert2->normal = normal;
+        vert0->tangent = tangent;
+        vert1->tangent = tangent;
+        vert2->tangent = tangent;
+        vert0->bitangent = bitangent;
+        vert1->bitangent = bitangent;
+        vert2->bitangent = bitangent;
     }
 
     inline float GetMaxXPointOfTri(Triangle& tri) {
@@ -486,6 +608,13 @@ namespace Util {
     inline glm::vec3 GetTranslationFromMatrix(glm::mat4 matrix) {
         return glm::vec3(matrix[3][0], matrix[3][1], matrix[3][2]);
     }
+
+	inline void RemoveScaleFromMatrix(glm::mat4& matrix) {
+		matrix[0][3] = 1.0f;
+		matrix[1][3] = 1.0f;
+		matrix[2][3] = 1.0f;
+	}
+
 
     inline void InterpolateQuaternion(glm::quat& Out, const glm::quat& Start, const glm::quat& End, float pFactor) {
         // calc cosine theta
@@ -679,5 +808,59 @@ namespace Util {
         has_pos = (d1 > 0) || (d2 > 0) || (d3 > 0);
         return !(has_neg && has_pos);
     }
-}
 
+    inline PxMat44 PxMat4FromJSONArray(rapidjson::GenericArray<false, rapidjson::Value> const arr) {
+        PxMat44 m;
+        m[0][0] = arr[0].GetFloat();
+        m[0][1] = arr[1].GetFloat();
+        m[0][2] = arr[2].GetFloat();
+        m[0][3] = arr[3].GetFloat();
+        m[1][0] = arr[4].GetFloat();
+        m[1][1] = arr[5].GetFloat();
+        m[1][2] = arr[6].GetFloat();
+        m[1][3] = arr[7].GetFloat();
+        m[2][0] = arr[8].GetFloat();
+        m[2][1] = arr[9].GetFloat();
+        m[2][2] = arr[10].GetFloat();
+        m[2][3] = arr[11].GetFloat();
+        m[3][0] = arr[12].GetFloat();
+        m[3][1] = arr[13].GetFloat();
+        m[3][2] = arr[14].GetFloat();
+        m[3][3] = arr[15].GetFloat();
+        return m;
+    }
+
+    inline glm::mat4 Mat4FromJSONArray(rapidjson::GenericArray<false, rapidjson::Value> const arr) {
+        glm::mat4 m;
+        m[0][0] = arr[0].GetFloat();
+        m[0][1] = arr[1].GetFloat();
+        m[0][2] = arr[2].GetFloat();
+        m[0][3] = arr[3].GetFloat();
+        m[1][0] = arr[4].GetFloat();
+        m[1][1] = arr[5].GetFloat();
+        m[1][2] = arr[6].GetFloat();
+        m[1][3] = arr[7].GetFloat();
+        m[2][0] = arr[8].GetFloat();
+        m[2][1] = arr[9].GetFloat();
+        m[2][2] = arr[10].GetFloat();
+        m[2][3] = arr[11].GetFloat();
+        m[3][0] = arr[12].GetFloat();
+        m[3][1] = arr[13].GetFloat();
+        m[3][2] = arr[14].GetFloat();
+        m[3][3] = arr[15].GetFloat();
+        return m;
+    }
+
+    inline glm::vec3 Vec3FromJSONArray(rapidjson::GenericArray<false, rapidjson::Value> const arr) {
+        return glm::vec3(arr[0].GetFloat(), arr[1].GetFloat(), arr[2].GetFloat());
+    }
+
+    inline PxVec3 PxVec3FromJSONArray(rapidjson::GenericArray<false, rapidjson::Value> const arr) {
+        return PxVec3(arr[0].GetFloat(), arr[1].GetFloat(), arr[2].GetFloat());
+    }
+
+    inline PxQuat PxQuatFromJSONArray(rapidjson::GenericArray<false, rapidjson::Value> const arr) {
+        return PxQuat(arr[0].GetFloat(), arr[1].GetFloat(), arr[2].GetFloat(), arr[3].GetFloat());
+    }
+
+}

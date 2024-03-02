@@ -7,7 +7,7 @@ enum class OpenState { NONE, CLOSED, CLOSING, OPEN, OPENING };
 enum class OpenAxis { NONE, TRANSLATE_X, TRANSLATE_Y, TRANSLATE_Z, ROTATION_POS_X, ROTATION_POS_Y, ROTATION_POS_Z, ROTATION_NEG_X, ROTATION_NEG_Y, ROTATION_NEG_Z };
 enum class InteractType { NONE, TEXT, QUESTION, PICKUP, CALLBACK_ONLY };
 enum class ModelMatrixMode { GAME_TRANSFORM, PHYSX_TRANSFORM };
-enum class PickUpType {NONE, GLOCK, GLOCK_AMMO, SHOTGUN, SHOTGUN_AMMO, AKS74U, AKS74U_AMMO };
+enum class PickUpType { NONE, GLOCK, GLOCK_AMMO, SHOTGUN, SHOTGUN_AMMO, AKS74U, AKS74U_AMMO, AKS74U_SCOPE };
 
 struct GameObject {
 public:
@@ -24,8 +24,14 @@ public:
 	float _openSpeed = 0;
 
 
+	// make this private again some how PLEEEEEEEEEEEEEEEEEEEEEASE when you have time. no rush.
+	PxRigidBody* _collisionBody = NULL;
+
 	PxRigidStatic* _editorRaycastBody = NULL;
 	PxShape* _editorRaycastShape = NULL;
+
+    PxRigidStatic* _raycastBody = NULL;
+    PxShape* _raycastShape = NULL;
 
 private:
 
@@ -35,11 +41,7 @@ private:
 		
 	ModelMatrixMode _modelMatrixMode = ModelMatrixMode::GAME_TRANSFORM;
 	BoundingBox _boundingBox;
-
-	PxRigidBody* _collisionBody = NULL;
 	std::vector<PxShape*> _collisionShapes;
-	PxRigidStatic* _raycastBody = NULL;
-	PxShape* _raycastShape = NULL;
 
 
 	struct AudioEffects {
@@ -61,14 +63,25 @@ public:
 	glm::quat GetWorldRotation();
 	void UpdateEditorPhysicsObject();
 
+	glm::vec3 GetWorldSpaceOABBCenter();
+    void DisableRaycasting();
+    void EnableRaycasting();
+
+    AABB _aabb;
+    AABB _aabbPreviousFrame;
+
+	//void SetModelScaleWhenUsingPhysXTransform(glm::vec3 scale);
+
+	glm::vec3 _scaleWhenUsingPhysXTransform = glm::vec3(1);
 
 	void SetOpenAxis(OpenAxis openAxis);
 	void SetAudioOnInteract(std::string filename, float volume);
 	void SetAudioOnOpen(std::string filename, float volume);
 	void SetAudioOnClose(std::string filename, float volume);
 	void SetInteract(InteractType type, std::string text, std::function<void(void)> callback);
-	void SetOpenState(OpenState openState, float speed, float min, float max);
-	void SetPosition(glm::vec3 position);
+    void SetOpenState(OpenState openState, float speed, float min, float max);
+    void SetPosition(glm::vec3 position);
+    void SetRotation(glm::vec3 rotation);
 	void SetPositionX(float position);
 	void SetPositionY(float position);
 	void SetPositionZ(float position);
@@ -108,9 +121,10 @@ public:
 
 	void CreateRigidBody(glm::mat4 matrix, bool kinematic);
 	void AddCollisionShape(PxShape* shape, PhysicsFilterData physicsFilterData);
-	void AddCollisionShapeFromConvexMesh(Mesh* mesh, PhysicsFilterData physicsFilterData);
+	void AddCollisionShapeFromConvexMesh(Mesh* mesh, PhysicsFilterData physicsFilterData, glm::vec3 scale = glm::vec3(1));
 	void AddCollisionShapeFromBoundingBox(BoundingBox& boundignBox, PhysicsFilterData physicsFilterData);
 	void UpdateRigidBodyMassAndInertia(float density);
+    void PutRigidBodyToSleep();
 
 	void SetRaycastShapeFromMesh(Mesh* mesh);
 	void SetRaycastShapeFromModel(Model* model);
@@ -121,10 +135,13 @@ public:
 	glm::mat4 GetGameWorldMatrix(); // aka not the physx matrix
 	void AddForceToCollisionObject(glm::vec3 direction, float strength);
 
-	void CleanUp();
+    void CleanUp();
+    bool HasMovedSinceLastFrame();
 
 	std::vector<Triangle> GetTris();
 
-private: 
+private:
+    bool _wasPickedUpLastFrame = false;
+    bool _wasRespawnedUpLastFrame = false;
 	//glm::mat4 CalculateModelMatrix(ModelMatrixMode modelMatrixMode);
 };

@@ -8,9 +8,20 @@
 
 void AnimatedGameObject::Update(float deltaTime) {
 
-    if (_currentAnimation) {
-        UpdateAnimation(deltaTime);
-        CalculateBoneTransforms();
+    if (_animationMode == ANIMATION) {
+        if (_currentAnimation) {
+            UpdateAnimation(deltaTime);
+            CalculateBoneTransforms();
+        }
+    }
+    else if (_animationMode == BINDPOSE && _skinnedModel) {
+        _animatedTransforms.Resize(_skinnedModel->m_NumBones);
+        for (int i = 0; i < _animatedTransforms.local.size(); i++) {
+            _animatedTransforms.local[i] = glm::mat4(1);
+        }
+        // TODO: update worldspace transforms also
+        // TODO: update worldspace transforms also
+        // TODO: update worldspace transforms also
     }
 }
 
@@ -41,6 +52,7 @@ void AnimatedGameObject::PlayAndLoopAnimation(std::string animationName, float s
             // Reset flags
             _loopAnimation = true;
             _animationIsComplete = false;
+            _animationMode = ANIMATION;
 
             // Update the speed
             _animationSpeed = speed;
@@ -87,8 +99,21 @@ void AnimatedGameObject::SetMaterial(std::string materialName) {
     }
 }
 
-void AnimatedGameObject::PlayAnimation(std::string animationName, float speed) {
+glm::mat4 AnimatedGameObject::GetBoneWorldMatrixFromBoneName(std::string name) {
+	for (int i = 0; i < _animatedTransforms.names.size(); i++) {
+        if (_animatedTransforms.names[i] == name) {
+            return _animatedTransforms.worldspace[i];
+        }
+    }
+    std::cout << "GetBoneWorldMatrixFromBoneName() failed to find name " << name << "\n";
+    return glm::mat4();
+}
 
+void AnimatedGameObject::SetAnimatedTransformsToBindPose() {
+    _animationMode = BINDPOSE;
+}
+
+void AnimatedGameObject::PlayAnimation(std::string animationName, float speed) {    
     // Find the matching animation name if it exists
     for (int i = 0; i < _skinnedModel->m_animations.size(); i++) {
         if (_skinnedModel->m_animations[i]->_filename == animationName) {       
@@ -97,7 +122,8 @@ void AnimatedGameObject::PlayAnimation(std::string animationName, float speed) {
             _loopAnimation = false;
             _animationSpeed = speed;
             _animationPaused = false;
-            _animationIsComplete = false;
+            _animationIsComplete = false; 
+            _animationMode = ANIMATION;
             return;
         }
     }
@@ -109,7 +135,7 @@ void AnimatedGameObject::UpdateAnimation(float deltaTime) {
 
     float duration = _currentAnimation->m_duration / _currentAnimation->m_ticksPerSecond;
 
-    // Increase the animtaion time
+    // Increase the animation time
     if (!_animationPaused) {
         _currentAnimationTime += deltaTime * _animationSpeed;
     }
@@ -136,7 +162,8 @@ glm::mat4 AnimatedGameObject::GetModelMatrix() {
     
     if (_skinnedModel->_filename == "AKS74U" 
         || _skinnedModel->_filename == "Glock"
-        || _skinnedModel->_filename == "Shotgun") {
+       // || _skinnedModel->_filename == "Shotgun"
+        ) {
         correction.rotation.y = HELL_PI;
     }
 
@@ -162,10 +189,19 @@ void AnimatedGameObject::SetSkinnedModel(std::string name) {
     if (skinnedModel) {
         _skinnedModel = skinnedModel;
         _materialIndices.resize(skinnedModel->m_meshEntries.size());
+
+        /*std::cout << "SetSkinnedModel() " << name << "\n";
+        for (int i = 0; i < skinnedModel->m_meshEntries.size(); i++) {
+            std::cout << "-" << skinnedModel->m_meshEntries[i].Name << "\n";
+        }*/
     }
     else {
         std::cout << "Could not SetSkinnedModel(name) with name: \"" << name << "\", it does not exist\n";
     }
+}
+
+glm::vec3 AnimatedGameObject::GetScale() {
+    return  _transform.scale;
 }
 
 void AnimatedGameObject::SetScale(float scale) {
@@ -323,19 +359,54 @@ glm::vec3 AnimatedGameObject::GetAKS74UBarrelPostion() {
     }
 }
 
-glm::vec3 AnimatedGameObject::GetShotgunBarrelPostion() {
-    if (_name == "Shotgun") {
+glm::vec3 AnimatedGameObject::GetShotgunBarrelPosition() {
+   // if (_name == "ShotgunTest") {
         int boneIndex = _skinnedModel->m_BoneMapping["Weapon"];
         glm::mat4 boneMatrix = _animatedTransforms.worldspace[boneIndex];
         Transform offset;
-        offset.position = glm::vec3(0, 0 + 1, 58);
+        offset.position = glm::vec3(82, 2, -10);
         glm::mat4 m = GetModelMatrix() * boneMatrix * offset.to_mat4();
         float x = m[3][0];
         float y = m[3][1];
         float z = m[3][2];
+     //  std::cout << "heDDDDDDDDDDDDDDDDDDDDDllon\n";
         return glm::vec3(x, y, z);
-    }
-    else {
+//    }
+ //   else {
         return glm::vec3(0);
+ //   }
+}
+
+void AnimatedGameObject::UpdateBoneTransformsFromBindPose() {
+
+    // Traverse the tree 
+    auto& joints = _skinnedModel->m_joints;
+
+    for (int i = 0; i < joints.size(); i++) {
+
+        // Get the node and its um bind pose transform?
+        const char* NodeName = joints[i].m_name;
+        glm::mat4 NodeTransformation = joints[i].m_inverseBindTransform;
+
+        unsigned int parentIndex = joints[i].m_parentIndex;
+
+        glm::mat4 ParentTransformation = (parentIndex == -1) ? glm::mat4(1) : joints[parentIndex].m_currentFinalTransform;
+        glm::mat4 GlobalTransformation = ParentTransformation * NodeTransformation;
+
+        joints[i].m_currentFinalTransform = GlobalTransformation;
+
+        if (_skinnedModel->m_BoneMapping.find(NodeName) != _skinnedModel->m_BoneMapping.end()) {
+            unsigned int BoneIndex = _skinnedModel->m_BoneMapping[NodeName];
+            _skinnedModel->m_BoneInfo[BoneIndex].FinalTransformation = GlobalTransformation * _skinnedModel->m_BoneInfo[BoneIndex].BoneOffset;
+            _skinnedModel->m_BoneInfo[BoneIndex].ModelSpace_AnimatedTransform = GlobalTransformation;
+        }
+    }
+
+    _debugTransformsA.resize(joints.size());
+    _debugTransformsB.resize(joints.size());
+
+    for (unsigned int i = 0; i < _skinnedModel->m_NumBones; i++) {
+        _debugTransformsA[i] = _skinnedModel->m_BoneInfo[i].FinalTransformation;
+        _debugTransformsB[i] = _skinnedModel->m_BoneInfo[i].ModelSpace_AnimatedTransform;
     }
 }

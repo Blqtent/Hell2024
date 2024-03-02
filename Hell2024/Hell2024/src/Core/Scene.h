@@ -8,6 +8,8 @@
 #include "Physics.h"
 #include "../Effects/BulletCasing.h"
 #include "../Effects/Decal.h"
+#include "Light.h"
+#include "Floor.h"
 
 #define WALL_HEIGHT 2.4f
 
@@ -59,6 +61,11 @@ struct CloudPoint {
 };
 
 
+struct SpawnPoint {
+    glm::vec3 position = glm::vec3(0);
+    glm::vec3 rotation = glm::vec3(0);
+};
+
 
 struct Wall {
     glm::vec3 begin = glm::vec3(0);
@@ -79,19 +86,6 @@ struct Wall {
     std::vector<Line> collisionLines;
 };
 
-struct Floor {
-    float x1, z1, x2, z2, height; // remove these. you are only using them to create the bathroom ceiling. 
-    Vertex v1, v2, v3, v4;
-    GLuint VAO = 0;
-    GLuint VBO = 0;
-    std::vector<Vertex> vertices;
-    float textureScale = 1.0f;
-    int materialIndex = 0;
-    Floor(float x1, float z1, float x2, float z2, float height, int materialIndex, float textureScale);
-    Floor(glm::vec3 pos1, glm::vec3 pos2, glm::vec3 pos3, glm::vec3 pos4, int materialIndex, float textureScale);
-    void Draw();
-    void CreateMesh();
-};
 
 struct Ceiling {
     float x1, z1, x2, z2, height;
@@ -122,6 +116,7 @@ struct RTInstance {
 struct Bullet {
     glm::vec3 spawnPosition;
     glm::vec3 direction;
+    Weapon type;
 };
 
 
@@ -163,6 +158,7 @@ namespace Scene {
     inline PxShape* _sceneShape = NULL;
 
     inline std::vector<PickUp> _pickUps;
+    inline std::vector<SpawnPoint> _spawnPoints;
     inline std::vector<Bullet> _bullets;
     inline std::vector<BulletCasing> _bulletCasings;
     inline std::vector<Decal> _decals;
@@ -194,6 +190,7 @@ namespace Scene {
     std::vector<AnimatedGameObject>& GetAnimatedGameObjects();
     void CreatePointCloud();
     void CreateMeshData();
+    void AddLight(Light& light);
     void AddDoor(Door& door);
     void AddWall(Wall& wall);
     void AddFloor(Floor& floor);
@@ -203,5 +200,7 @@ namespace Scene {
     void ProcessPhysicsCollisions();
 	void RecreateAllPhysicsObjects();
 	void RemoveAllDecalsFromWindow(Window* window); 
-    Player* GetPlayerFromCharacterControler(PxController* characterController);
+    void CalculateLightBoundingVolumes();
+    void CheckIfLightsAreDirty();
+    //Player* GetPlayerFromCharacterControler(PxController* characterController);
 }
